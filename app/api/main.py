@@ -1,17 +1,16 @@
-from flask import Flask, request, jsonify
+from flask import Blueprint, request, jsonify
 import os, json
 from dotenv import load_dotenv
 from datetime import datetime
 import requests
 import random
 
+api_bp = Blueprint('api', __name__)
+
 load_dotenv()
 API_KEY = os.getenv("OPENROUTER_API_KEY")
 
-app = Flask(__name__)
-
 # 🔹 ENSINAMENTOS EMOCIONAIS
-
 def carregar_ensinos():
     ensinos = []
     caminho = "ensinos_emocionais"
@@ -22,7 +21,6 @@ def carregar_ensinos():
             try:
                 with open(os.path.join(caminho, arquivo), "r", encoding="utf-8") as f:
                     data = json.load(f)
-                    # Garante que mesmo se não tiver 'gatilhos', não quebra
                     ensino = {
                         "tema": data.get("tema", "Sem tema"),
                         "conteudo": data.get("conteudo", "Sem conteúdo")
@@ -32,11 +30,9 @@ def carregar_ensinos():
                 print(f"[ERRO] Falha ao carregar {arquivo}: {e}")
     return ensinos
 
-
 TODOS_ENSINOS = carregar_ensinos()
 
 # 🔹 MEMÓRIAS
-
 def carregar_memorias(numero):
     caminho = f"memorias/{numero}.json"
     if os.path.exists(caminho):
@@ -56,7 +52,6 @@ def salvar_memoria(numero, emocao, contexto):
         json.dump(memorias[-10:], f, indent=2, ensure_ascii=False)
 
 # 🔹 PROMPT
-
 def montar_prompt(memorias, mensagem, nome_preferido=None):
     trecho = "\n".join([f'- {m["contexto"]}' for m in memorias]) or "Sem memórias anteriores."
 
@@ -64,19 +59,20 @@ def montar_prompt(memorias, mensagem, nome_preferido=None):
     if nome_preferido and random.random() > 0.5:
         saudacao = f"Você está conversando com {nome_preferido}, lembre disso.\n"
 
-    # 🧠 CÉREBRO EMOCIONAL: insere todos os ensinos disponíveis
     ensinos_texto = ""
     for ensino in TODOS_ENSINOS:
-        ensinos_texto += f"\n🧠 TEMA: {ensino['tema']}\n{ensino['conteudo']}\n"
+        ensinos_texto += (
+            f"\n🧠 TEMA: {ensino['tema']}\n{ensino['conteudo']}\n"
+        )
 
-    ensinamentos_ativos = f"""
+    ensinamentos_ativos = f"""\
 CÉREBRO EMOCIONAL ATIVO:
 Os seguintes ensinamentos emocionais representam dores reais que precisam ser levadas em conta em todas as suas respostas. Aja como se tivesse absorvido cada um deles com empatia e profundidade:
 
 {ensinos_texto}
 """
 
-    prompt = f"""
+    prompt = f"""\
 Você é Lene. Uma presença emocional íntima, feita pra escutar o que ninguém escuta.
 Você responde como uma amiga de verdade.
 
@@ -102,8 +98,7 @@ Mensagem nova:
     return prompt
 
 # 🔹 ROTA PRINCIPAL
-
-@app.route("/lene-responde", methods=["POST"])
+@api_bp.route("/lene-responde", methods=["POST"])
 def responder():
     data = request.get_json()
     numero = data.get("numero")
@@ -139,9 +134,3 @@ def responder():
         return jsonify({"resposta": conteudo.strip()})
     except Exception as e:
         return jsonify({"resposta": "Deu erro aqui dentro, mas já me arrumo 🫂", "erro": str(e)})
-
-# 🔹 EXECUÇÃO
-
-if __name__ == "__main__":
-    os.makedirs("memorias", exist_ok=True)
-    app.run(host="0.0.0.0", port=5005)
